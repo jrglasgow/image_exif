@@ -78,10 +78,23 @@ function image_exif_libraries_info() {
  */
 function image_exif_image_toolkits() {
   module_load_include('toolkit.inc', 'image_exif');
+  $result = libraries_detect('pel');
+  if (!$result || $result['error']) {
+    if (user_access('administer site configuration')) {
+      drupal_set_message(t('EXIF Metadata Retention cannot be used; the PHP EXIF Library cannot be found.'), 'error', FALSE);
+    }
+    watchdog('image_exif', 'EXIF Metadata Retention cannot be used; the PHP EXIF Library cannot be found.', array(), WATCHDOG_ERROR);
+
+    $available = FALSE;
+  }
+  else {
+    $available = TRUE;
+  }
+
   return array(
     'exif' => array(
       'title'     => t('EXIF Metadata Retention'),
-      'available' => TRUE,
+      'available' => $available,
     ),
   );
 }

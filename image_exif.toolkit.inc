@@ -12,7 +12,7 @@
 function image_exif_settings() {
   module_load_include('inc', 'system', 'image.gd');
   $form =  image_gd_settings();
-  $form['status']['#markup'] .= t('EXIF Metadata Retention relies heavily on "GD2 image manipulation toolkit".');
+  $form['status']['#markup'] .= ' ' . t('EXIF Metadata Retention relies heavily on "GD2 image manipulation toolkit".');
   return $form;
 }
 
