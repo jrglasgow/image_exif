@@ -126,7 +126,7 @@ function image_exif_save_metadata($image, $derivative_path) {
   // get the original file exif attributes
   $original_jpeg = new lsolesen\pel\PelJpeg($path);
 
-  $original_data = image_exif_get_data($original_jpeg);
+  $original_data = image_exif_get_data($original_jpeg, $path);
 
   // allow other modules to alter the data before it goes to the derivative image
   drupal_alter('image_exif', $original_data);
@@ -140,7 +140,7 @@ function image_exif_save_metadata($image, $derivative_path) {
 /**
  * get the EXIF data
  */
-function image_exif_get_data($jpeg) {
+function image_exif_get_data($jpeg, $path = '') {
 
   $exif = $jpeg->getExif();
   if (empty($exif)) {
@@ -148,9 +148,57 @@ function image_exif_get_data($jpeg) {
   }
   $tiff = $exif->getTiff();
   $ifd = $tiff->getIfd();
+  
   $data = array();
   image_exif_get_data_recurse($data, $ifd);
+  if (!empty($path)) {
+    $info = array();
+    $size = getimagesize($path, $info);
+
+    $headers = image_exif_get_iptc_headers();
+
+    foreach ($info AS $key => $value) {ddpm($key, '$key');
+      $iptc_data = iptcparse($value);;
+      foreach ($iptc_data AS $skey => $svalue) {
+        if (!empty($value)) {
+          if (isset($headers[$skey])) {
+            $skey = $headers[$skey];
+          }
+          $data['IPTC-' . $key][$skey] = $svalue;
+        }
+      }
+    }
+  }
+
   return $data;
+}
+
+function image_exif_get_iptc_headers() {
+  return array(
+    '2#005' =>  'DocumentTitle',
+    '2#010' =>  'Urgency',
+    '2#015' =>  'Category',
+    '2#020' =>  'Subcategories',
+    '2#025' =>  'Keywords',
+    '2#040' =>  'SpecialInstructions',
+    '2#055' =>  'CreationDate',
+    '2#060' =>  'CreationDate',
+    '2#062' =>  'DigitizationDate',
+    '2#063' =>  'DigitizationTime',
+    '2#080' =>  'AuthorByline',
+    '2#085' =>  'AuthorTitle',
+    '2#090' =>  'City',
+    '2#095' =>  'State',
+    '2#100' =>  'Country Code',
+    '2#101' =>  'Country',
+    '2#103' =>  'OTR',
+    '2#105' =>  'Headline',
+    '2#110' =>  'Source',
+    '2#115' =>  'PhotoSource',
+    '2#116' =>  'Copyright',
+    '2#120' =>  'Caption',
+    '2#122' =>  'CaptionWriter'
+  );
 }
 
 /**
@@ -175,6 +223,10 @@ function image_exif_get_data_recurse(&$parent, $ifd) {
     foreach($subIfds AS $sIfd) {
       image_exif_get_data_recurse($parent[$ifd->getName()], $sIfd);
     }
+  }
+
+  if ($nextIfd = $ifd->getNextIfd()) {
+    image_exif_get_data_recurse($parent, $nextIfd);
   }
 }
 
