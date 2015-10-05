@@ -135,6 +135,15 @@ function image_exif_save_metadata($image, $derivative_path) {
   $derivative_jpeg = new lsolesen\pel\PelJpeg($derivative_path);
   $derivative_jpeg->setExif($original_jpeg->getExif());
   $derivative_jpeg->saveFile($derivative_path);
+
+  // copy over IPTC data
+  $info = array();
+  $size = getimagesize($path, $info);
+
+  $content = iptcembed($info['APP13'], $derivative_path);
+  $fp = fopen($derivative_path,'wb');
+  fwrite($fp, $content);
+  fclose($fp);
 }
 
 /**
@@ -157,8 +166,8 @@ function image_exif_get_data($jpeg, $path = '') {
 
     $headers = image_exif_get_iptc_headers();
 
-    foreach ($info AS $key => $value) {ddpm($key, '$key');
-      $iptc_data = iptcparse($value);;
+    foreach ($info AS $key => $value) {
+      $iptc_data = iptcparse($value);
       foreach ($iptc_data AS $skey => $svalue) {
         if (!empty($value)) {
           if (isset($headers[$skey])) {
@@ -173,6 +182,9 @@ function image_exif_get_data($jpeg, $path = '') {
   return $data;
 }
 
+/**
+ * get a list of human readable iptc headers
+ */
 function image_exif_get_iptc_headers() {
   return array(
     '2#005' =>  'DocumentTitle',
