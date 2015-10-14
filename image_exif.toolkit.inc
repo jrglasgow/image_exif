@@ -141,10 +141,51 @@ function image_exif_save_metadata($image, $derivative_path) {
   $size = getimagesize($path, $info);
 
   $content = iptcembed($info['APP13'], $derivative_path);
+
   $fp = fopen($derivative_path,'wb');
   fwrite($fp, $content);
   fclose($fp);
+
+/**
+ *debugging iptc data copying
+
+  $info2 = array();
+  $size2 = getimagesize($derivative_path, $info2);
+  $data2 = array();
+  foreach ($info2 AS $key2 => $value2) {
+    $iptc_data2 = iptcparse($value2);
+    foreach ($iptc_data2 AS $skey2 => $svalue2) {
+      if (!empty($value2)) {
+        $data2['IPTC-' . $key2][$skey2] = $svalue2;
+      }
+    }
+  }//ddpm($data2, ' derivative $data2');
+  /**/
 }
+
+if (!function_exists('iptc_make_tag')) {
+  // iptc_make_tag() function by Thies C. Arntzen
+  // from http://us3.php.net/manual/en/function.iptcembed.php#refsect1-function.iptcembed-examples
+  function iptc_make_tag($rec, $data, $value) {
+    $length = strlen($value);
+    $retval = chr(0x1C) . chr($rec) . chr($data);
+
+    if($length < 0x8000) {
+      $retval .= chr($length >> 8) .  chr($length & 0xFF);
+    }
+    else {
+      $retval .= chr(0x80) .
+                 chr(0x04) .
+                 chr(($length >> 24) & 0xFF) .
+                 chr(($length >> 16) & 0xFF) .
+                 chr(($length >> 8) & 0xFF) .
+                 chr($length & 0xFF);
+    }
+
+    return $retval . $value;
+  }
+}
+
 
 /**
  * get the EXIF data
