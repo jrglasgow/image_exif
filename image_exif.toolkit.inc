@@ -118,168 +118,40 @@ function image_exif_save(stdClass $image, $destination) {
  * to new derivative file
  */
 function image_exif_save_metadata($image, $derivative_path) {
-  libraries_load('pel');
+  libraries_load('pjmt');
 
   if ($wrapper = file_stream_wrapper_get_instance_by_uri($image->source)) {
-    $path = $wrapper->realpath();
+    $original_path = $wrapper->realpath();
   }
-  // get the original file exif attributes
-  $original_jpeg = new lsolesen\pel\PelJpeg($path);
-
-  $original_data = image_exif_get_data($original_jpeg, $path);
-
-  // allow other modules to alter the data before it goes to the derivative image
-  drupal_alter('image_exif', $original_data);
+  else {
+    return;
+  }
+  ob_start();
 
 
-  $derivative_jpeg = new lsolesen\pel\PelJpeg($derivative_path);
-  $derivative_jpeg->setExif($original_jpeg->getExif());
-  $derivative_jpeg->saveFile($derivative_path);
+  // read exif data
+  $exif = get_EXIF_JPEG($original_path);
 
-  // copy over IPTC data
-  $info = array();
-  $size = getimagesize($path, $info);
+  $original_header_data = get_jpeg_header_data($original_path);
+  $original_irb = get_Photoshop_IRB($original_header_data);
+  $original_iptc = get_Photoshop_IPTC($original_irb);
+  $xmp = get_EXIF_JPEG($original_path);
 
-  $content = iptcembed($info['APP13'], $derivative_path);
-
-  $fp = fopen($derivative_path,'wb');
-  fwrite($fp, $content);
-  fclose($fp);
-
-/**
- *debugging iptc data copying
-
-  $info2 = array();
-  $size2 = getimagesize($derivative_path, $info2);
-  $data2 = array();
-  foreach ($info2 AS $key2 => $value2) {
-    $iptc_data2 = iptcparse($value2);
-    foreach ($iptc_data2 AS $skey2 => $svalue2) {
-      if (!empty($value2)) {
-        $data2['IPTC-' . $key2][$skey2] = $svalue2;
-      }
-    }
-  }//ddpm($data2, ' derivative $data2');
-  /**/
-}
-
-if (!function_exists('iptc_make_tag')) {
-  // iptc_make_tag() function by Thies C. Arntzen
-  // from http://us3.php.net/manual/en/function.iptcembed.php#refsect1-function.iptcembed-examples
-  function iptc_make_tag($rec, $data, $value) {
-    $length = strlen($value);
-    $retval = chr(0x1C) . chr($rec) . chr($data);
-
-    if($length < 0x8000) {
-      $retval .= chr($length >> 8) .  chr($length & 0xFF);
+  $out1 = ob_get_contents();
+  ob_end_clean();
+  // write the same exif data to the derivatives
+  $derivative_header_data = get_jpeg_header_data($derivative_path);
+  if ($derivative_header_data) {
+    $derivative_header_data = put_EXIF_JPEG($exif, $derivative_header_data);
+    $derivative_irb = get_Photoshop_IRB($derivative_header_data);
+    if (!empty($derivative_irb)) {
+      $derivative_irb = put_Photoshop_IPTC($derivative_irb, $original_iptc);
     }
     else {
-      $retval .= chr(0x80) .
-                 chr(0x04) .
-                 chr(($length >> 24) & 0xFF) .
-                 chr(($length >> 16) & 0xFF) .
-                 chr(($length >> 8) & 0xFF) .
-                 chr($length & 0xFF);
+      $derivative_irb = $original_irb;
     }
-
-    return $retval . $value;
-  }
-}
-
-
-/**
- * get the EXIF data
- */
-function image_exif_get_data($jpeg, $path = '') {
-
-  $exif = $jpeg->getExif();
-  if (empty($exif)) {
-    return FALSE;
-  }
-  $tiff = $exif->getTiff();
-  $ifd = $tiff->getIfd();
-  
-  $data = array();
-  image_exif_get_data_recurse($data, $ifd);
-  if (!empty($path)) {
-    $info = array();
-    $size = getimagesize($path, $info);
-
-    $headers = image_exif_get_iptc_headers();
-
-    foreach ($info AS $key => $value) {
-      $iptc_data = iptcparse($value);
-      foreach ($iptc_data AS $skey => $svalue) {
-        if (!empty($value)) {
-          if (isset($headers[$skey])) {
-            $skey = $headers[$skey];
-          }
-          $data['IPTC-' . $key][$skey] = $svalue;
-        }
-      }
-    }
-  }
-
-  return $data;
-}
-
-/**
- * get a list of human readable iptc headers
- */
-function image_exif_get_iptc_headers() {
-  return array(
-    '2#005' =>  'DocumentTitle',
-    '2#010' =>  'Urgency',
-    '2#015' =>  'Category',
-    '2#020' =>  'Subcategories',
-    '2#025' =>  'Keywords',
-    '2#040' =>  'SpecialInstructions',
-    '2#055' =>  'CreationDate',
-    '2#060' =>  'CreationDate',
-    '2#062' =>  'DigitizationDate',
-    '2#063' =>  'DigitizationTime',
-    '2#080' =>  'AuthorByline',
-    '2#085' =>  'AuthorTitle',
-    '2#090' =>  'City',
-    '2#095' =>  'State',
-    '2#100' =>  'Country Code',
-    '2#101' =>  'Country',
-    '2#103' =>  'OTR',
-    '2#105' =>  'Headline',
-    '2#110' =>  'Source',
-    '2#115' =>  'PhotoSource',
-    '2#116' =>  'Copyright',
-    '2#120' =>  'Caption',
-    '2#122' =>  'CaptionWriter'
-  );
-}
-
-/**
- * recurse through the tree getting exif data
- */
-function image_exif_get_data_recurse(&$parent, $ifd) {
-  $parent[$ifd->getName()] = array(
-    'this' => $ifd,
-  );
-  $name = $ifd->getName();
-  // get all the entries
-  foreach ($ifd as $tag => $entry) {
-    $parent[$ifd->getName()][lsolesen\pel\PelTag::getName($entry->getIfdType(), $entry->getTag())] = array(
-      'text'  => $entry->getText(),
-      'value' => $entry->getValue(),
-      'entry' => $entry,
-    );
-  }
-  // get all the sib Ifds
-  $subIfds = $ifd->getSubIfds();
-  if (!empty($subIfds)) {
-    foreach($subIfds AS $sIfd) {
-      image_exif_get_data_recurse($parent[$ifd->getName()], $sIfd);
-    }
-  }
-
-  if ($nextIfd = $ifd->getNextIfd()) {
-    image_exif_get_data_recurse($parent, $nextIfd);
+    $derivative_header_data = put_Photoshop_IRB($derivative_header_data, $derivative_irb);
+    $status = put_jpeg_header_data($derivative_path, $derivative_path, $derivative_header_data);
   }
 }
 
