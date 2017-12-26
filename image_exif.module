@@ -30,7 +30,54 @@ function image_exif_libraries_info() {
       ),
     )
   );
+
+  $libraries['pel'] = array(
+    'name'              => 'PHP EXIF Library',
+    'vendor url'        => 'https://github.com/pel/pel',
+    'download url'      => 'https://github.com/pel/pel/archive/0.9.6.zip',
+    'version arguments' => array(
+      'file'      => 'CHANGELOG.md', // Could be any file with version info
+      'pattern'   => '/##\s(?!CHANGE)([0-9]*.[0-9]*.[0-9]*)/',
+      'lines'     => 10,
+    ),
+    'files'             => array(
+      'php'     => array(
+        'autoload.php',
+      ),
+    )
+  );
+
   return $libraries;
+}
+
+/**
+ * Implements hook_requirements().
+ */
+function image_exif_requirements($phase) {
+  $requirements = array();
+  $name = 'pel';
+
+  if (($library = libraries_detect($name)) && !empty($library['installed'])) {
+    $requirements['pel'] = array(
+      'title' => 'PHP EXIF Library',
+      'severity' => REQUIREMENT_OK,
+      'value' => t('PHP Exif Library version @version installed at %path.', array('@version' => $library['version'], '%path' => $library['library path'])),
+    );
+  }
+  else {
+    $requirements['pel'] = array(
+      'title' => t('PHP Exif Library'),
+      'severity' => REQUIREMENT_ERROR,
+      'value' => t('PHP EXIF Library was not found. Please <a href="@link">download a copy</a> and place in the libraries directory.', array('@link' => 'https://github.com/pel/pel/archive/0.9.6.zip')),
+    );
+    // Something went wrong. :(
+    // This contains a short status code of what went wrong, such as 'not found'.
+    // $error = $library['error'];
+    // This contains a detailed (localized) error message.
+    // $error_message = $library['error message'];
+  }
+
+  return $requirements;
 }
 
 /**
