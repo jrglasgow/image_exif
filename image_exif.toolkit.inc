@@ -112,47 +112,118 @@ function image_exif_save(stdClass $image, $destination) {
   }
   return $success;
 }
+use lsolesen\pel\PelDataWindow;
+use lsolesen\pel\PelJpeg;
+use lsolesen\pel\PelExif;
+use lsolesen\pel\PelTiff;
+use lsolesen\pel\PelIfd;
 
 /**
  * get the exif data from the original file, allow other modules to alter, save
  * to new derivative file
  */
 function image_exif_save_metadata($image, $derivative_path) {
-  libraries_load('pjmt');
-
+  libraries_load('pel');
   if ($wrapper = file_stream_wrapper_get_instance_by_uri($image->source)) {
     $original_path = $wrapper->realpath();
   }
   else {
     return;
   }
+  // make sure we capture all output incase the library puts anything out that we don't want
   ob_start();
-
-
-  // read exif data
-  $exif = get_EXIF_JPEG($original_path);
-
-  $original_header_data = get_jpeg_header_data($original_path);
-  $original_irb = get_Photoshop_IRB($original_header_data);
-  $original_iptc = get_Photoshop_IPTC($original_irb);
-  $xmp = get_EXIF_JPEG($original_path);
-
+  $original_image = image_exif_get_ifd($original_path);
+  $derivative_image = image_exif_get_ifd($derivative_path);
+  $derivative_image->setExif($original_image->getExif());
+  $derivative_image->saveFile($derivative_path);
   $out1 = ob_get_contents();
   ob_end_clean();
-  // write the same exif data to the derivatives
-  $derivative_header_data = get_jpeg_header_data($derivative_path);
-  if ($derivative_header_data) {
-    $derivative_header_data = put_EXIF_JPEG($exif, $derivative_header_data);
-    $derivative_irb = get_Photoshop_IRB($derivative_header_data);
-    if (!empty($derivative_irb)) {
-      $derivative_irb = put_Photoshop_IPTC($derivative_irb, $original_iptc);
+}
+
+/**
+ * get the PelJpeg object for an image;
+ * taken mostly from pel/examples/edit-description.php with comments
+ */
+function image_exif_get_ifd($image_path) {
+  $data = new PelDataWindow(file_get_contents($image_path));
+  if (PelJpeg::isValid($data)) {
+    /*
+     * The data was recognized as JPEG data, so we create a new empty
+     * PelJpeg object which will hold it. When we want to save the
+     * image again, we need to know which object to same (using the
+     * getBytes method), so we store $jpeg as $file too.
+     */
+    $jpeg = $file = new PelJpeg();
+    /*
+     * We then load the data from the PelDataWindow into our PelJpeg
+     * object. No copying of data will be done, the PelJpeg object will
+     * simply remember that it is to ask the PelDataWindow for data when
+     * required.
+     */
+    $jpeg->load($data);
+    /*
+     * The PelJpeg object contains a number of sections, one of which
+     * might be our Exif data. The getExif() method is a convenient way
+     * of getting the right section with a minimum of fuzz.
+     */
+    $exif = $jpeg->getExif();
+    if ($exif == null) {
+        /*
+         * Ups, there is no APP1 section in the JPEG file. This is where
+         * the Exif data should be.
+         *
+         * In this case we simply create a new APP1 section (a PelExif
+         * object) and adds it to the PelJpeg object.
+         */
+        $exif = new PelExif();
+        $jpeg->setExif($exif);
+        /* We then create an empty TIFF structure in the APP1 section. */
+        $tiff = new PelTiff();
+        $exif->setTiff($tiff);
+    } else {
+        /*
+         * Surprise, surprise: Exif data is really just TIFF data! So we
+         * extract the PelTiff object for later use.
+         */
+        $tiff = $exif->getTiff();
     }
-    else {
-      $derivative_irb = $original_irb;
-    }
-    $derivative_header_data = put_Photoshop_IRB($derivative_header_data, $derivative_irb);
-    $status = put_jpeg_header_data($derivative_path, $derivative_path, $derivative_header_data);
+  } elseif (PelTiff::isValid($data)) {
+    /*
+     * The data was recognized as TIFF data. We prepare a PelTiff
+     * object to hold it, and record in $file that the PelTiff object is
+     * the top-most object (the one on which we will call getBytes).
+     */
+    $tiff = $file = new PelTiff();
+    /* Now load the data. */
+    $tiff->load($data);
+  } else {
+    /*
+     * The data was not recognized as either JPEG or TIFF data.
+     * Complain loudly, dump the first 16 bytes, and exit.
+     */
+    return;
   }
+
+  /*
+   * TIFF data has a tree structure much like a file system. There is a
+   * root IFD (Image File Directory) which contains a number of entries
+   * and maybe a link to the next IFD. The IFDs are chained together
+   * like this, but some of them can also contain what is known as
+   * sub-IFDs. For our purpose we only need the first IFD, for this is
+   * where the image description should be stored.
+   */
+  $ifd0 = $tiff->getIfd();
+  if ($ifd0 == null) {
+    /*
+     * No IFD in the TIFF data? This probably means that the image
+     * didn't have any Exif information to start with, and so an empty
+     * PelTiff object was inserted by the code above. But this is no
+     * problem, we just create and inserts an empty PelIfd object.
+     */
+    $ifd0 = new PelIfd(PelIfd::IFD0);
+    $tiff->setIfd($ifd0);
+  }
+  return $file;
 }
 
 /**

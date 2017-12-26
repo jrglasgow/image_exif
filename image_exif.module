@@ -15,22 +15,6 @@
 function image_exif_libraries_info() {
   $libraries = array();
 
-  $libraries['pjmt'] = array(
-    'name'              => 'PHP JPEG Metadata Toolkit',
-    'vendor url'        => 'http://www.ozhiker.com/electronics/pjmt/',
-    'download url'      => 'http://www.ozhiker.com/electronics/pjmt/download.html',
-    'version arguments' => array(
-      'file'      => 'Toolkit_Version.php', // Could be any file with version info
-      'pattern'   => '/\$GLOBALS\[\'Toolkit_Version\'\] = "(.*)";/',
-      'lines'     => 100,
-    ),
-    'files'             => array(
-      'php'     => array(
-        'EXIF.php',
-      ),
-    )
-  );
-
   $libraries['pel'] = array(
     'name'              => 'PHP EXIF Library',
     'vendor url'        => 'https://github.com/pel/pel',
@@ -61,7 +45,7 @@ function image_exif_requirements($phase) {
     $requirements['pel'] = array(
       'title' => 'PHP EXIF Library',
       'severity' => REQUIREMENT_OK,
-      'value' => t('PHP Exif Library version @version installed at %path.', array('@version' => $library['version'], '%path' => $library['library path'])),
+      'value' => t('PHP Exif Library version >=@version installed at %path. We cannot be certain about the version because the CHANGELOG.md file is not only kept up to date.', array('@version' => $library['version'], '%path' => $library['library path'])),
     );
   }
   else {
@@ -84,14 +68,14 @@ function image_exif_requirements($phase) {
  * Implements hook_image_toolkits().
  */
 function image_exif_image_toolkits() {
+  $result = libraries_detect('pel');
   module_load_include('toolkit.inc', 'image_exif');
-  $result = libraries_detect('pjmt');
-  
+
   if (!$result || $result['error']) {
     if (user_access('administer site configuration')) {
-      drupal_set_message(t('EXIF Metadata Retention cannot be used; the PHP JPEG Metadata Toolkit cannot be found.'), 'error', FALSE);
+      drupal_set_message(t('EXIF Metadata Retention cannot be used; the PHP EXIF Library cannot be found.'), 'error', FALSE);
     }
-    watchdog('image_exif', 'EXIF Metadata Retention cannot be used; the PHP JPEG Metadata Toolkit cannot be found.', array(), WATCHDOG_ERROR);
+    watchdog('image_exif', 'EXIF Metadata Retention cannot be used; the PHP EXIF Library cannot be found.', array(), WATCHDOG_ERROR);
 
     $available = FALSE;
   }
