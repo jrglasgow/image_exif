@@ -6,4 +6,4 @@ libraries[pjmt][download][type] = git
 libraries[pjmt][download][url] = ssh://git@172.22.58.11:7999/WCMSH/pjmt.git
 libraries[pjmt][directory_name] = "pjmt"
 libraries[pjmt][destination] = "libraries"
-libraries[pjmt][download][tag] = 1.12.01
+libraries[pjmt][download][tag] = php7-1.0
