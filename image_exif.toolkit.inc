@@ -141,6 +141,11 @@ function image_exif_save(stdClass $image, $destination) {
   }
   return $success;
 }
+use lsolesen\pel\PelDataWindow;
+use lsolesen\pel\PelJpeg;
+use lsolesen\pel\PelExif;
+use lsolesen\pel\PelTiff;
+use lsolesen\pel\PelIfd;
 
 /**
  * get the exif data from the original file, allow other modules to alter, save
