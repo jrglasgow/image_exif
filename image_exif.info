@@ -1,3 +1,4 @@
 name=Image EXIF
 description=Ensure EXIF data from original image exists in derivitive images
 core=7.x
+dependencies[] = composer_manager

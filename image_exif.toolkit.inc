@@ -5,6 +5,9 @@
  *
  * contain the image toolkit necessary callbacks
  */
+use Monolog\Logger;
+use PHPExiftool\Reader;
+use PHPExiftool\Writer;
 
  /**
  * @see image_gd_settings().
@@ -17,6 +20,9 @@ function image_exif_settings() {
 }
 
 /**
+ * @param $form
+ * @param $form_state
+ *
  * @see image_gd_settings_validate().
  */
 function image_exif_settings_validate($form, &$form_state) {
@@ -25,6 +31,11 @@ function image_exif_settings_validate($form, &$form_state) {
 }
 
 /**
+ * @param \stdClass $image
+ * @param           $width
+ * @param           $height
+ *
+ * @return bool
  * @see image_gd_resize().
  */
 function image_exif_resize(stdClass $image, $width, $height) {
@@ -33,6 +44,11 @@ function image_exif_resize(stdClass $image, $width, $height) {
 }
 
 /**
+ * @param \stdClass $image
+ * @param           $degrees
+ * @param null      $background
+ *
+ * @return bool
  * @see image_gd_rotate().
  */
 function image_exif_rotate(stdClass $image, $degrees, $background = NULL) {
@@ -41,6 +57,13 @@ function image_exif_rotate(stdClass $image, $degrees, $background = NULL) {
 }
 
 /**
+ * @param \stdClass $image
+ * @param           $x
+ * @param           $y
+ * @param           $width
+ * @param           $height
+ *
+ * @return bool
  * @see image_gd_crop().
  */
 function image_exif_crop(stdClass $image, $x, $y, $width, $height) {
@@ -49,6 +72,9 @@ function image_exif_crop(stdClass $image, $x, $y, $width, $height) {
 }
 
 /**
+ * @param \stdClass $image
+ *
+ * @return bool
  * @see image_gd_desaturate().
  */
 function image_exif_desaturate(stdClass $image) {
@@ -56,6 +82,9 @@ function image_exif_desaturate(stdClass $image) {
 }
 
 /**
+ * @param \stdClass $image
+ *
+ * @return bool
  * @see image_gd_load().
  */
 function image_exif_load(stdClass $image) {
@@ -116,46 +145,34 @@ function image_exif_save(stdClass $image, $destination) {
 /**
  * get the exif data from the original file, allow other modules to alter, save
  * to new derivative file
+ *
+ * @param $image
+ * @param $derivative_path
+ *
+ * @throws \PHPExiftool\Exception\EmptyCollectionException
  */
 function image_exif_save_metadata($image, $derivative_path) {
-  libraries_load('pjmt');
-
   if ($wrapper = file_stream_wrapper_get_instance_by_uri($image->source)) {
     $original_path = $wrapper->realpath();
   }
   else {
     return;
   }
-  ob_start();
 
+  $logger = new Logger('exiftool');
+  $reader = Reader::create($logger);
 
-  // read exif data
-  $exif = get_EXIF_JPEG($original_path);
-
-  $original_header_data = get_jpeg_header_data($original_path);
-  $original_irb = get_Photoshop_IRB($original_header_data);
-  $original_iptc = get_Photoshop_IPTC($original_irb);
-  $xmp = get_EXIF_JPEG($original_path);
-
-  $out1 = ob_get_contents();
-  ob_end_clean();
-  // write the same exif data to the derivatives
-  $derivative_header_data = get_jpeg_header_data($derivative_path);
-  if ($derivative_header_data) {
-    $derivative_header_data = put_EXIF_JPEG($exif, $derivative_header_data);
-    $derivative_irb = get_Photoshop_IRB($derivative_header_data);
-    if (!empty($derivative_irb)) {
-      $derivative_irb = put_Photoshop_IPTC($derivative_irb, $original_iptc);
-    }
-    else {
-      $derivative_irb = $original_irb;
-    }
-    $derivative_header_data = put_Photoshop_IRB($derivative_header_data, $derivative_irb);
-    $status = put_jpeg_header_data($derivative_path, $derivative_path, $derivative_header_data);
-  }
+  $metadataBag = $reader->files($original_path)->first();
+  $writer = Writer::create($logger);
+  $writer->write($derivative_path, $metadataBag);
 }
 
 /**
+ * @param \stdClass $image
+ * @param           $width
+ * @param           $height
+ *
+ * @return false|resource
  * @see image_gd_create_tmp().
  */
 function image_exif_create_tmp(stdClass $image, $width, $height) {
@@ -164,6 +181,9 @@ function image_exif_create_tmp(stdClass $image, $width, $height) {
 }
 
 /**
+ * @param \stdClass $image
+ *
+ * @return array|bool
  * @see image_gd_get_info().
  */
 function image_exif_get_info(stdClass $image) {
